@@ -1068,6 +1068,65 @@
     if (e.key === 'Enter') addWordManually();
   });
 
+  // ── Google Sheets Sync ──
+  const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSRao3VVaW7d15ulW2vJXiQqZaf_5ajE1taQ3blYTG3zi0GePXHnjTmBQPje5XoUmwJYJLyIVuEgcix/pub?gid=0&single=true&output=csv';
+
+  async function syncFromSheet() {
+    try {
+      showToast('Syncing words…');
+      const res = await fetch(SHEET_CSV_URL + '&t=' + Date.now());
+      const text = await res.text();
+      const lines = text.trim().split('\n').slice(1);
+      if (!lines.length || !lines[0].trim()) return;
+
+      const data = loadData();
+      let added = 0;
+
+      for (const line of lines) {
+        const cols = parseCSVLine(line);
+        const italian    = (cols[0] || '').trim();
+        const english    = (cols[1] || '').trim();
+        const context    = (cols[2] || '').trim();
+        const mastery    = parseInt(cols[3]) || 0;
+        const nextReview = (cols[4] || '').trim() || todayStr();
+        const addedDate  = (cols[5] || '').trim() || todayStr();
+
+        if (!italian || !english) continue;
+
+        const exists = data.words.find(w => w.italian.toLowerCase() === italian.toLowerCase());
+        if (!exists) {
+          data.words.push({
+            id: Date.now() + Math.random(),
+            italian, english, context,
+            mastery, nextReview, addedDate,
+            timesCorrect: 0, timesWrong: 0
+          });
+          added++;
+        }
+      }
+
+      saveData(data);
+      refreshHome();
+      if (added > 0) showToast(`✦ Synced ${added} new word${added > 1 ? 's' : ''}`);
+      else showToast('Already up to date');
+    } catch (e) {
+      console.warn('Sheet sync failed:', e);
+    }
+  }
+
+  function parseCSVLine(line) {
+    const result = [];
+    let cur = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    result.push(cur);
+    return result;
+  }
+
   // ── Init ──
   refreshHome();
 
@@ -1076,11 +1135,14 @@
     navigator.serviceWorker.register('/italiano-vocab/sw.js', {scope: '/italiano-vocab/'}).catch(() => {});
   }
 
-  // Pre-load with ossia!
+  // Pre-load with ossia if empty, then sync
   const data = loadData();
   if (data.words.length === 0) {
     addWord('ossia', 'or else / or rather', 'A musical term for an alternative passage');
   }
+
+  // Sync from Google Sheet on every load
+  syncFromSheet();
 </script>
 </body>
 </html>
