@@ -1,5 +1,5 @@
-const CACHE = 'italiano-v1';
-const ASSETS = ['/', '/index.html'];
+const CACHE = 'italiano-v3';
+const ASSETS = ['/italiano-vocab/', '/italiano-vocab/index.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
